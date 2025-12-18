@@ -13,12 +13,28 @@ apt install -y gnupg wget lsb-release
 
 # ---------- 添加 XanMod 源 ----------
 echo "[+] 添加 XanMod 官方仓库"
+
 echo "deb http://deb.xanmod.org releases main" \
   > /etc/apt/sources.list.d/xanmod-kernel.list
 
-wget -qO - https://dl.xanmod.org/gpg.key \
-  | gpg --dearmor \
-  > /etc/apt/trusted.gpg.d/xanmod-kernel.gpg
+KEY_TMP="/tmp/xanmod.gpg.key"
+
+if ! wget -O "$KEY_TMP" https://dl.xanmod.org/gpg.key; then
+    echo "❌ 无法下载 XanMod GPG key（网络问题）"
+    exit 1
+fi
+
+if [ ! -s "$KEY_TMP" ]; then
+    echo "❌ 下载的 GPG key 为空，可能被劫持或阻断"
+    exit 1
+fi
+
+if ! gpg --dearmor < "$KEY_TMP" > /etc/apt/trusted.gpg.d/xanmod-kernel.gpg; then
+    echo "❌ GPG key 格式无效，拒绝继续"
+    exit 1
+fi
+
+rm -f "$KEY_TMP"
 
 apt update
 
