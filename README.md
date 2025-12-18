@@ -24,7 +24,7 @@ chmod +x install-xanmod.sh
 
 - 显示可用内核类型，让你选择（MAIN/EDGE/LTS/RT）
 
-- 检测 CPU 支持的版本，并让你确认要安装的内核版本（x64v1/x64v2/x64v3）
+- 检测 CPU 支持的版本，自动确认安装对应内核版本（x64v1/x64v2/x64v3）
 
 - 自动安装对应 XanMod 内核
 
