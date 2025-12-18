@@ -27,7 +27,12 @@ apt search linux-xanmod | grep -E "linux-xanmod-(mainline|edge|lts|rt)"
 echo
 
 ATTEMPT=0
-while [ $ATTEMPT -lt 5 ]; do
+while true; do
+    if [ $ATTEMPT -ge 5 ]; then
+        echo "⚠️ 连续输入错误 5 次，脚本退出"
+        exit 1
+    fi
+
     read -rp "请选择要安装的内核类型 [M]AIN/[E]DGE/[L]TS/[R]T (默认 E): " KERNEL_INPUT
     KERNEL_INPUT=${KERNEL_INPUT^^}  # 转大写
     [[ -z "$KERNEL_INPUT" ]] && KERNEL_INPUT="E"
@@ -43,11 +48,6 @@ while [ $ATTEMPT -lt 5 ]; do
             ;;
     esac
 done
-
-if [ $ATTEMPT -ge 5 ]; then
-    echo "⚠️ 连续输入错误 5 次，脚本退出"
-    exit 1
-fi
 
 echo "✅ 选择的内核类型: $KERNEL_TYPE_PKG"
 
@@ -68,7 +68,12 @@ echo "💡 系统检测推荐安装: $SUGGEST_VER"
 read -rp "确认使用推荐版本 $SUGGEST_VER 吗？(Y/n) " CONFIRM_VER
 if [[ "$CONFIRM_VER" =~ ^[Nn]$ ]]; then
     ATTEMPT_VER=0
-    while [ $ATTEMPT_VER -lt 5 ]; do
+    while true; do
+        if [ $ATTEMPT_VER -ge 5 ]; then
+            echo "⚠️ 连续输入错误 5 次，脚本退出"
+            exit 1
+        fi
+
         echo "请输入要使用的版本 [1=x64v1 / 2=x64v2 / 3=x64v3]:"
         read -rp "选择 1/2/3: " VER_INPUT
         case "$VER_INPUT" in
@@ -81,10 +86,6 @@ if [[ "$CONFIRM_VER" =~ ^[Nn]$ ]]; then
                 ;;
         esac
     done
-    if [ $ATTEMPT_VER -ge 5 ]; then
-        echo "⚠️ 连续输入错误 5 次，脚本退出"
-        exit 1
-    fi
 fi
 
 echo "✅ 将安装内核版本: $KERNEL_TYPE_PKG $SUGGEST_VER"
