@@ -12,30 +12,35 @@ apt update
 apt install -y gnupg wget lsb-release
 
 # ---------- 添加 XanMod 源 ----------
-echo "[+] 添加 XanMod 官方仓库"
+echo "[+] 添加 XanMod 官方仓库（apt-keyring 模式）"
 
-echo "deb http://deb.xanmod.org releases main" \
-  > /etc/apt/sources.list.d/xanmod-kernel.list
-
+KEYRING="/usr/share/keyrings/xanmod-archive-keyring.gpg"
 KEY_TMP="/tmp/xanmod.gpg.key"
 
+# 下载 GPG key
 if ! wget -O "$KEY_TMP" https://dl.xanmod.org/gpg.key; then
-    echo "❌ 无法下载 XanMod GPG key（网络问题）"
+    echo "❌ 无法下载 XanMod GPG key"
     exit 1
 fi
 
 if [ ! -s "$KEY_TMP" ]; then
-    echo "❌ 下载的 GPG key 为空，可能被劫持或阻断"
+    echo "❌ 下载的 GPG key 为空"
     exit 1
 fi
 
-if ! gpg --dearmor < "$KEY_TMP" > /etc/apt/trusted.gpg.d/xanmod-kernel.gpg; then
-    echo "❌ GPG key 格式无效，拒绝继续"
+# 转换为 keyring
+if ! gpg --dearmor < "$KEY_TMP" > "$KEYRING"; then
+    echo "❌ GPG key 无效"
     exit 1
 fi
 
 rm -f "$KEY_TMP"
 
+# 写入 source.list（绑定 key）
+echo "deb [signed-by=$KEYRING] http://deb.xanmod.org releases main" \
+  > /etc/apt/sources.list.d/xanmod-kernel.list
+
+# 更新索引
 apt update
 
 # ---------- 显示可用内核 ----------
