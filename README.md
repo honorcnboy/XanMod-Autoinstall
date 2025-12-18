@@ -1,6 +1,6 @@
 1️⃣ **下载自动安装脚本**
 ```
-wget -O https://raw.githubusercontent.com/honorcnboy/XanMod-Autoinstall/refs/heads/main/install-xanmod.sh
+wget https://raw.githubusercontent.com/honorcnboy/XanMod-Autoinstall/refs/heads/main/install-xanmod.sh
 ```
 
 2️⃣ **给脚本添加执行权限**
