@@ -44,6 +44,6 @@ chmod +x install-xanmod.sh
 uname -r
 ```
 
-如果输出类似 6.5.3-xanmod1，说明新内核已经启动成功
+:bulb:如果输出类似 6.5.3-xanmod1，说明新内核已经启动成功
 
 旧内核仍在系统中，可在 GRUB 菜单中选择回退
