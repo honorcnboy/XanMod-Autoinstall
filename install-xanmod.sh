@@ -1,124 +1,139 @@
-#!/bin/bash
-# =========================================
-# Debian / Ubuntu 安全安装 XanMod 内核 (一键互动版)
-# 保留旧内核，自动更新 GRUB，提供关键交互确认
-# =========================================
-
+#!/usr/bin/env bash
 set -e
 
 echo "============================================"
-echo "🚀 欢迎使用 XanMod 内核安装脚本（保留旧内核版）"
+echo " XanMod Kernel Installer (Safe Interactive)"
+echo " 保留旧内核 | 支持 GRUB 回退"
 echo "============================================"
-
-# 1️⃣ 系统更新与安装必要工具
-echo -e "\n1️⃣ 系统更新与安装必要工具..."
-sudo apt update && sudo apt upgrade -y
-sudo apt install gnupg wget -y
-
-# 2️⃣ 添加 XanMod 官方仓库
-echo -e "\n2️⃣ 添加 XanMod 官方仓库..."
-echo 'deb http://deb.xanmod.org releases main' | sudo tee /etc/apt/sources.list.d/xanmod-kernel.list
-wget -qO - https://dl.xanmod.org/gpg.key | sudo gpg --dearmor -o /etc/apt/trusted.gpg.d/xanmod-kernel.gpg
-sudo apt update
-
-# 3️⃣ 查看可用的 XanMod 内核版本
-echo -e "\n3️⃣ 查看可用的 XanMod 内核版本..."
-apt search linux-xanmod | grep -E "linux-xanmod-(mainline|edge|lts|rt)"
 echo
 
+# ---------- 基础环境 ----------
+apt update
+apt install -y gnupg wget lsb-release
+
+# ---------- 添加 XanMod 源 ----------
+echo "[+] 添加 XanMod 官方仓库"
+echo "deb http://deb.xanmod.org releases main" \
+  > /etc/apt/sources.list.d/xanmod-kernel.list
+
+wget -qO - https://dl.xanmod.org/gpg.key \
+  | gpg --dearmor \
+  > /etc/apt/trusted.gpg.d/xanmod-kernel.gpg
+
+apt update
+
+# ---------- 显示可用内核 ----------
+echo
+echo "[+] 可用 XanMod 内核："
+apt search linux-xanmod | grep xanmod | grep amd64
+echo
+
+# ---------- 选择内核分支 ----------
 ATTEMPT=0
 while true; do
-    if [ $ATTEMPT -ge 5 ]; then
-        echo "⚠️ 连续输入错误 5 次，脚本退出"
+    if [ "$ATTEMPT" -ge 5 ]; then
+        echo "❌ 连续输入错误 5 次，脚本退出"
         exit 1
     fi
 
-    read -rp "请选择要安装的内核类型 [M]AIN/[E]DGE/[L]TS/[R]T (默认 E): " KERNEL_INPUT
-    KERNEL_INPUT=${KERNEL_INPUT^^}  # 转大写
-    [[ -z "$KERNEL_INPUT" ]] && KERNEL_INPUT="E"
+    read -rp "选择内核分支 [M]AIN/[E]DGE/[L]TS/[R]T (默认 E): " IN
+    IN=${IN^^}
+    [ -z "$IN" ] && IN="E"
 
-    case "$KERNEL_INPUT" in
-        M) KERNEL_TYPE_PKG="mainline" ; break ;;
-        E) KERNEL_TYPE_PKG="edge"     ; break ;;
-        L) KERNEL_TYPE_PKG="lts"      ; break ;;
-        R) KERNEL_TYPE_PKG="rt"       ; break ;;
+    case "$IN" in
+        M) KERNEL_BRANCH="mainline"; break ;;
+        E) KERNEL_BRANCH="edge";     break ;;
+        L) KERNEL_BRANCH="lts";      break ;;
+        R) KERNEL_BRANCH="rt";       break ;;
         *)
-            ((ATTEMPT++))
-            echo "❌ 输入无效，请输入首字母 M/E/L/R（大小写均可），尝试次数 $ATTEMPT/5"
+            ATTEMPT=$((ATTEMPT+1))
+            echo "输入错误，请输入 M/E/L/R（$ATTEMPT/5）"
             ;;
     esac
 done
 
-echo "✅ 选择的内核类型: $KERNEL_TYPE_PKG"
+echo "✔ 已选择分支：$KERNEL_BRANCH"
+echo
 
-# 4️⃣ CPU 支持检测与内核版本建议
-echo -e "\n4️⃣ CPU 支持检测与内核版本建议..."
-CPU_FLAGS=$(lscpu | grep Flags | tr ' ' '\n')
+# ---------- CPU 指令集检测 ----------
+FLAGS=$(lscpu | grep Flags)
 
-if echo "$CPU_FLAGS" | grep -q avx2; then
-    SUGGEST_VER="x64v3"
-elif echo "$CPU_FLAGS" | grep -q sse4_2; then
-    SUGGEST_VER="x64v2"
+if echo "$FLAGS" | grep -qw avx2; then
+    RECOMMEND=3
+elif echo "$FLAGS" | grep -qw sse4_2; then
+    RECOMMEND=2
 else
-    SUGGEST_VER="x64v1"
+    RECOMMEND=1
 fi
 
-echo "💡 系统检测推荐安装: $SUGGEST_VER"
+echo "[+] CPU 架构检测：推荐 x64v$RECOMMEND"
+read -rp "是否使用推荐版本？[Y/n]: " CONFIRM
+CONFIRM=${CONFIRM,,}
+[ -z "$CONFIRM" ] && CONFIRM="y"
 
-read -rp "确认使用推荐版本 $SUGGEST_VER 吗？(Y/n) " CONFIRM_VER
-if [[ "$CONFIRM_VER" =~ ^[Nn]$ ]]; then
-    ATTEMPT_VER=0
+# ---------- 手动选择架构 ----------
+if [ "$CONFIRM" = "n" ]; then
+    ATTEMPT=0
     while true; do
-        if [ $ATTEMPT_VER -ge 5 ]; then
-            echo "⚠️ 连续输入错误 5 次，脚本退出"
+        if [ "$ATTEMPT" -ge 5 ]; then
+            echo "❌ 连续输入错误 5 次，脚本退出"
             exit 1
         fi
 
-        echo "请输入要使用的版本 [1=x64v1 / 2=x64v2 / 3=x64v3]:"
-        read -rp "选择 1/2/3: " VER_INPUT
-        case "$VER_INPUT" in
-            1) SUGGEST_VER="x64v1" ; break ;;
-            2) SUGGEST_VER="x64v2" ; break ;;
-            3) SUGGEST_VER="x64v3" ; break ;;
+        read -rp "选择架构版本 [1=x64v1 / 2=x64v2 / 3=x64v3]: " V
+        case "$V" in
+            1|2|3) RECOMMEND="$V"; break ;;
             *)
-                ((ATTEMPT_VER++))
-                echo "❌ 输入无效，请输入 1、2 或 3，尝试次数 $ATTEMPT_VER/5"
+                ATTEMPT=$((ATTEMPT+1))
+                echo "输入错误，请输入 1/2/3（$ATTEMPT/5）"
                 ;;
         esac
     done
 fi
 
-echo "✅ 将安装内核版本: $KERNEL_TYPE_PKG $SUGGEST_VER"
-
-# 5️⃣ 安装 XanMod 内核
-echo -e "\n5️⃣ 安装 XanMod 内核..."
-sudo apt install -y linux-xanmod-$KERNEL_TYPE_PKG-$SUGGEST_VER
-
-echo "✅ 内核安装完成，旧内核仍保留"
-
-# 6️⃣ 检查 GRUB 中可用内核
-echo -e "\n6️⃣ 检查 GRUB 中可用内核..."
-grep menuentry /boot/grub/grub.cfg | grep -i xanmod
+ARCH="x64v$RECOMMEND"
+echo "✔ 最终选择：$KERNEL_BRANCH + $ARCH"
 echo
-read -rp "是否进行下一步更新 GRUB 并设置默认启动 XanMod 内核? (Y/n) " UPDATE_GRUB
-if [[ ! "$UPDATE_GRUB" =~ ^[Nn]$ ]]; then
-    # 自动获取新内核名称
-    KERNEL_NAME=$(grep "menuentry '.*xanmod" /boot/grub/grub.cfg | head -n1 | sed "s/menuentry '\(.*\)'.*/\1/")
-    sudo sed -i "s|^GRUB_DEFAULT=.*|GRUB_DEFAULT=\"$KERNEL_NAME\"|g" /etc/default/grub
-    sudo sed -i "s|^GRUB_TIMEOUT=.*|GRUB_TIMEOUT=5|g" /etc/default/grub
-    sudo update-grub
-    echo "✅ GRUB 已更新，默认启动内核: $KERNEL_NAME"
+
+# ---------- 安装内核 ----------
+echo "[+] 安装 XanMod 内核..."
+apt install -y linux-xanmod-${KERNEL_BRANCH}-${ARCH}
+
+echo
+echo "[+] 当前 GRUB 中的 XanMod 内核："
+grep xanmod /boot/grub/grub.cfg || true
+echo
+
+# ---------- 是否更新 GRUB ----------
+read -rp "是否更新 GRUB 并设为默认启动 XanMod？[Y/n]: " GRUB_OK
+GRUB_OK=${GRUB_OK,,}
+[ -z "$GRUB_OK" ] && GRUB_OK="y"
+
+if [ "$GRUB_OK" = "y" ]; then
+    DEFAULT_ENTRY=$(grep "menuentry '.*xanmod" /boot/grub/grub.cfg \
+        | head -n1 \
+        | sed "s/menuentry '\(.*\)'.*/\1/")
+
+    sed -i "s|^GRUB_DEFAULT=.*|GRUB_DEFAULT=\"$DEFAULT_ENTRY\"|" /etc/default/grub
+    sed -i "s|^GRUB_TIMEOUT=.*|GRUB_TIMEOUT=5|" /etc/default/grub
+
+    update-grub
+    echo "✔ GRUB 已更新，默认启动："
+    echo "  $DEFAULT_ENTRY"
 else
-    echo "⚠️ 跳过 GRUB 更新，请手动确认 GRUB 配置"
+    echo "⚠ 已跳过 GRUB 更新"
 fi
 
-# 7️⃣ 重启前确认
-read -rp "是否立即重启系统以验证新内核? (Y/n) " REBOOT_CONFIRM
-if [[ ! "$REBOOT_CONFIRM" =~ ^[Nn]$ ]]; then
-    echo "🔄 系统重启中..."
-    sudo reboot
-else
-    echo "⚠️ 脚本执行完成，但未重启，请手动重启验证内核"
-fi
+echo
 
-echo "🎉 脚本执行完成！"
+# ---------- 重启确认 ----------
+read -rp "是否现在重启以启用新内核？[Y/n]: " REBOOT
+REBOOT=${REBOOT,,}
+[ -z "$REBOOT" ] && REBOOT="y"
+
+if [ "$REBOOT" = "y" ]; then
+    echo "系统即将重启..."
+    reboot
+else
+    echo "已跳过重启，请稍后手动 reboot"
+fi
